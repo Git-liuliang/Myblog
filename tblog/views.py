@@ -65,3 +65,105 @@ def register(request):
 
         form_obj = uforms.regFrom()
         return render(request, "reg.html", {"form_obj": form_obj})
+
+
+
+def home_site(request,username,**kwargs):
+    print("kwargs", kwargs)
+    print(username)
+    user = models.UserInfo.objects.filter(username=username).first()
+    if not user:
+        return HttpResponse("<h3>404</h3>")
+
+    blog = user.blog
+
+    if not kwargs:
+        article_list = models.Article.objects.filter(user=user)
+    else:
+        condition = kwargs.get("condition")
+        param = kwargs.get("param")  # 2018-02
+        if condition == "cate":
+            article_list = models.Article.objects.filter(user=user).filter(homeCategory__title=param)
+        elif condition == "tag":
+            article_list = models.Article.objects.filter(user=user).filter(tags__title=param)
+        else:
+            year, month = param.split("-")
+            article_list = models.Article.objects.filter(user=user).filter(create_time__year=year, create_time__month=month)
+
+    from django.db.models import Count, Max
+    cate_list = models.Category.objects.filter(blog=blog).annotate(count=Count("article")).values_list("title", "count")
+    print(cate_list)
+
+    # 查询当前站点的每一个标签的名称以及对应的文章数：分组查询
+    tag_list = models.Tag.objects.filter(blog=blog).annotate(count=Count("article")).values_list("title", "count")
+    print(tag_list)
+
+    # 日期归档
+    date_list = models.Article.objects.filter(user=user).extra(
+        select={"archive_date": "strftime('%%Y-%%m',create_time)"}).values("archive_date").annotate(
+        c=Count("nid")).values_list("archive_date", "c")
+    print(date_list)
+
+    return render(request, "home_site.html", locals())
+
+
+def get_data(username):
+    user = models.UserInfo.objects.filter(username=username).first()
+    blog = user.blog
+    from django.db.models import Count, Max
+    cate_list = models.Category.objects.filter(blog=blog).annotate(count=Count("article")).values_list("title", "count")
+    print(cate_list)
+    # 查询当前站点的每一个标签的名称以及对应的文章数：分组查询
+    tag_list = models.Tag.objects.filter(blog=blog).annotate(count=Count("article")).values_list("title", "count")
+    print(tag_list)
+    # 日期归档
+    date_list = models.Article.objects.filter(user=user).extra(
+        select={"archive_date": "strftime('%%Y-%%m',create_time)"}).values("archive_date").annotate(
+        c=Count("nid")).values_list("archive_date", "c")
+    print(date_list)
+    return {"username": username, "blog": blog, "cate_list": cate_list, "tag_list": tag_list, "date_list": date_list}
+
+
+def article_detail(request,username,article_id):
+
+    ret=get_data(username)
+
+    article_obj=models.Article.objects.filter(pk=article_id).first()
+
+    ret["article_obj"]=article_obj
+
+    return render(request,"artcile_detail.html",ret)
+
+def updown(request):
+    if request.method == "POST":
+        article_id = request.POST.get("article_id")
+        boolen = request.POST.get("boolen")
+        user = models.UserInfo.objects.filter(username=request.user.username).first()
+        print(user.nid)
+        print(request.POST.get("article_id"))
+        print(request.POST.get("boolen"))
+        print(request.user.username)
+        ret = models.ArticleUpDown.objects.filter(article_id=article_id,user_id=user.nid).first()
+        print(ret)
+        print(type(boolen))
+        if  not ret:
+            models.ArticleUpDown.objects.create(article_id=article_id,is_up=boolen,user_id=user.nid)
+            if boolen == "0":
+
+                upnum = models.Article.objects.filter(nid=article_id).first().up_count
+                print(upnum)
+                models.Article.objects.filter(nid=article_id).update(up_count=upnum+1)
+                response = {"upnum":upnum+1,"mes":"up+1"}
+                return HttpResponse(json.dumps(response))
+            else:
+                downnum = models.Article.objects.filter(nid=article_id).first().down_count
+                models.Article.objects.filter(nid=article_id).update(down_count=downnum + 1)
+                response = {"downnum": downnum+1, "mes": "down+1"}
+                return HttpResponse(json.dumps(response))
+        else:
+            response = {"mes":"您已经推荐过了！"}
+            return HttpResponse(json.dumps(response))
+    return HttpResponse("ok")
+
+
+

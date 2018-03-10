@@ -1,0 +1,58 @@
+{% extends "home_site.html" %}
+
+
+{% block con %}
+   <div class="article_info">
+       <h3 class="text-center">{{ article_obj.title }}</h3>
+       <div class="content">
+           {{ article_obj.articledetail.content|safe }}
+       </div>
+   </div>
+
+    <div id="div_digg">
+        <div class="diggit" onclick="votePost({{ article_obj.nid  }},0)">
+            <span class="diggnum" id="digg_count">{{ article_obj.up_count }}</span>
+        </div>
+        <div class="buryit" onclick="votePost({{ article_obj.nid  }},1)">
+            <span class="burynum" id="bury_count">{{ article_obj.down_count }}</span>
+        </div>
+        <div class="clear">_______________</div>
+        <div class="diggword" id="digg_tips" style="color: red;"></div>
+   </div>
+
+     <script src="/static/js/jquery-3.1.1.js"></script>
+    <script>
+        function votePost(article_id,boolen) {
+
+            $.ajax({
+                url: "/tblog/updown/",
+                type: "post",
+                data: {
+                    "article_id": article_id,
+                    "boolen": boolen
+
+                },
+                 success:function (data) {
+                    // {"user":"","error_meg":""}
+                    var data = JSON.parse(data);
+                     $(".diggword").html(data.mes).css('color',"red");
+                     $("#digg_count").html(data.upnum);
+                     $("#bury_count").html(data.downnum);
+
+
+                    setTimeout(function () {
+                        $(".diggword").html("")
+                    },1000)
+
+                }
+
+
+            })
+
+        }
+
+
+    </script>
+
+
+{% endblock %}
